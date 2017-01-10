@@ -1,0 +1,673 @@
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <pthread.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <asm/types.h>
+#include <curl/curl.h>  
+#include <signal.h>
+#include <errno.h>
+#include "lib_general.h"
+#include "lib_update.h"
+
+
+#if 1
+#include "lib_general.h"
+#include "lib_update.h"
+
+#define MTD_DEV_KERNEL			"/dev/mtd9"
+#define MTD_DEV_APPL			"/dev/mtd10"
+
+
+CURL *curl_download = NULL;
+
+
+
+static size_t __fn_write(void *ptr, size_t size, size_t nmemb, void *stream)  
+{  
+	return fwrite(ptr, size, nmemb, (FILE*)stream);  
+}  
+
+static int __fn_progress(void *ptr, double dltotal, double dlnow, double ultotal, double ulnow)
+{
+#if 0
+	fprintf(stderr, "dltotal = %f\n", dltotal);
+	fprintf(stderr, "dlnow = %f\n", dlnow);
+	fprintf(stderr, "ultotal = %f\n", ultotal);
+	fprintf(stderr, "ulnow = %f\n", ulnow);
+	
+	fprintf(stderr, "%f /%f (%g %%)\n", dlnow, dltotal, dlnow * 100.0 / dltotal);
+#endif
+
+	return 0;
+}
+
+
+static int __ftp_download(const char *username, const char *passwd, const char *remote_path, const char *local_path, const long connect_timeout, const long download_tineout)
+{
+	char userpass[128] = {0};
+	FILE *fp = NULL;
+	curl_off_t local_file_len = -1;
+//	long file_size = 0;
+	CURLcode curl_r = CURLE_GOT_NOTHING;
+	struct stat f_stat;
+	int use_resume = 0; //断点续传 
+	//CURL *curl_download = NULL;
+
+	sprintf(userpass, "%s:%s", username, passwd);
+
+	/* 获取本地文件大小 */
+	if(stat(local_path, &f_stat) == 0)
+	{
+		local_file_len = f_stat.st_size;
+		use_resume = 1;
+	}
+
+	/* 断点续传 */
+	fp = fopen(local_path, "ab+");
+	if(fp == NULL)
+	{
+		fprintf(stderr, "ftp download fopen %s failed!\n", local_path);
+		return -1;
+	}
+
+	fprintf(stderr, "local_file_len = %d\n", local_file_len);
+	
+
+	//curl_global_init(CURL_GLOBAL_ALL);  
+	curl_download = curl_easy_init();
+	
+	curl_easy_setopt(curl_download, CURLOPT_URL, remote_path);  
+	curl_easy_setopt(curl_download, CURLOPT_USERPWD, userpass);  //设置用户名与密码。参数是格式如 “user:password ”的字符串
+	curl_easy_setopt(curl_download, CURLOPT_CONNECTTIMEOUT, connect_timeout);   //连接超时
+
+	curl_easy_setopt(curl_download, CURLOPT_TIMEOUT, download_tineout);   //下载超时
+
+	/* 设置断点续传 */
+	curl_easy_setopt(curl_download, CURLOPT_RESUME_FROM_LARGE, use_resume? local_file_len : 0);   //断点续传
+	curl_easy_setopt(curl_download, CURLOPT_WRITEFUNCTION, __fn_write);   //写回调函数
+	curl_easy_setopt(curl_download, CURLOPT_WRITEDATA, fp);    //流指针
+	
+	curl_easy_setopt(curl_download, CURLOPT_NOPROGRESS, 0L);
+	curl_easy_setopt(curl_download, CURLOPT_PROGRESSFUNCTION, __fn_progress);
+	curl_easy_setopt(curl_download, CURLOPT_PROGRESSDATA, NULL);
+	
+	curl_easy_setopt(curl_download, CURLOPT_VERBOSE, 1L);   //将CURLOPT_VERBOSE属性设置为1，libcurl会输出通信过程中的一些细节
+
+	curl_r = curl_easy_perform(curl_download);
+
+	fprintf(stderr, "----------curl_r = %d\n", curl_r);
+	
+	curl_easy_cleanup(curl_download);
+	curl_global_cleanup();  
+
+
+	
+	
+	fclose(fp);  
+
+	if(curl_r == CURLE_OK)  //下载成功
+		return 0;
+
+	fprintf(stderr, "curl_r = %d\n", curl_r);
+
+	fprintf(stderr,"%s\n", curl_easy_strerror(curl_r));  
+	
+	return -1;
+}
+
+
+
+static lib_update_t *g_appl_update = NULL;
+
+#define FIRMWARE_NAME			"app_V001T15060505"
+
+static int g_qbl = 1;
+
+static void __sigint(int sig)
+{
+	fprintf(stderr, "signal: %d\n", sig);
+
+	
+	//lib_update_destroy(g_appl_update);
+	curl_easy_cleanup(curl_download);
+	curl_global_cleanup();  
+
+	g_qbl = 0;
+
+	lib_sleep(1);
+
+	exit(1);
+}
+
+static void __signals_init(void)
+{
+	struct sigaction sa;
+
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGCHLD, SIG_IGN);
+	
+	sa.sa_flags = 0;
+	sigaddset(&sa.sa_mask, SIGINT);
+    sigaddset(&sa.sa_mask, SIGTERM);
+   	sigaddset(&sa.sa_mask, SIGHUP);
+	sigaddset(&sa.sa_mask, SIGPIPE);
+
+	sa.sa_handler = __sigint;
+	sigaction(SIGINT, &sa, NULL);
+	
+	sa.sa_handler = __sigint;
+	sigaction(SIGTERM, &sa, NULL);
+	
+	sa.sa_handler = __sigint;
+	sigaction(SIGHUP, &sa, NULL);	
+
+	sa.sa_handler = SIG_IGN;
+	sigaction(SIGPIPE, &sa, NULL);	
+}
+
+
+int main(int argc, char *argv[])
+{
+	int ret = -1;
+	//char remote_path[64] = {0};
+	//char local_path[64] = {0};
+	struct update_config config;
+	lib_parameter_t para;
+	int file_fd = -1;
+	struct stat filestat;
+
+	
+	fprintf(stderr, "Software Compiled Time: %s, %s.\r\n",__DATE__, __TIME__);
+
+
+	__signals_init();
+	
+	memset(&config, 0, sizeof(struct update_config ));
+	memset(&para, 0, sizeof(lib_parameter_t));
+	memset(&filestat, 0, sizeof(struct stat));
+	
+	strcpy(config.mtd_device, MTD_DEV_APPL);
+
+#if 1
+	g_appl_update = lib_update_create(&config);
+	if(g_appl_update == NULL)
+	{
+		fprintf(stderr, "lib_update_create failed!\n");
+		return -1;
+	}
+#endif
+	
+	//sprintf(remote_path, "ftp://120.24.58.76/%s", FIRMWARE_NAME);
+	//sprintf(local_path, "/opt/%s", FIRMWARE_NAME );
+	
+	//char *remote_path = "ftp://120.24.58.76/app_T042803";
+	//char *local_path = "/opt/app_T042803";
+
+	//fprintf(stderr, "%s\n", remote_path);
+	//fprintf(stderr, "%s\n", local_path);
+
+	//curl_global_init(CURL_GLOBAL_ALL);  
+	
+	//ret = __ftp_download("waysoon", "123456", remote_path, local_path, 5, 10);
+	//fprintf(stderr, "__ftp_download: ret = %d\n", ret);
+
+#if 1
+	ret = 0;
+	if(ret  == 0) //成功
+	{
+		//ret = lib_update_write_flash(g_appl_update, local_path);
+		//fprintf(stderr, "lib_update_write_flash ret = %d\n", ret);
+		
+		//file_fd = open(local_path, O_RDONLY);
+		//fstat(file_fd, &filestat);
+		//fprintf(stderr, "%s size: %d\n", local_path, filestat.st_size);
+		//close(file_fd);
+	
+		para.magic = LIB_UP_PARA_MAGIC;
+	
+		strcpy(para.partition[UP_PARTITION_APP].firmware_name, FIRMWARE_NAME);
+		para.partition[UP_PARTITION_APP].len = filestat.st_size;
+		lib_get_systime_bcd(para.partition[UP_PARTITION_APP].datetime);
+		para.partition[UP_PARTITION_APP].is_need_update = 0x00;;
+
+		para.crc16 = lib_crc16_with_byte((unsigned char *)&para, sizeof(lib_parameter_t) - 2);
+
+		ret =lib_update_write_parameter(g_appl_update, &para);
+		fprintf(stderr, "write parameter ret = %d\n", ret);
+
+		fprintf(stderr, "update success\n");
+	}
+#endif
+
+
+	
+	//sprintf(remote_path, "ftp://112.74.97.250/%s", FIRMWARE_NAME);
+	//sprintf(local_path, "/opt/ftppath/%s", FIRMWARE_NAME );
+	
+	//char *remote_path = "ftp://112.74.97.250/app_V001T15060505";
+
+	char *remote_path = "ftp://112.74.97.250/app_V001T15060505";
+	char *local_path = "/opt/ftppath/app_V001T15060505";
+
+	fprintf(stderr, "%s\n", remote_path);
+	fprintf(stderr, "%s\n", local_path);
+
+	curl_global_init(CURL_GLOBAL_ALL);  
+	
+	//ret = __ftp_download("bicycleftp", "123456", remote_path, local_path, 5, 180);
+	ret = __ftp_download("bicycleftp", "123456", remote_path, local_path, 5, 180);
+	fprintf(stderr, "__ftp_download: ret = %d\n", ret);
+
+
+#if 0
+	while(1)
+	{
+		if(!g_qbl)
+			break;
+		
+		fprintf(stderr, "while(1)\n");
+		
+		lib_sleep(5);
+	}
+#endif
+
+
+	//lib_update_destroy(g_appl_update);
+
+	//curl_easy_cleanup(curl_download);
+	//curl_global_cleanup();  
+	
+	fprintf(stderr, "Main Quit!\n");
+	
+	return 0;
+}
+#endif
+
+#if 1
+#include "ftdi/ftdi.h"
+
+
+
+//#define USING_FTDI1
+#define USING_FTDI2
+
+static struct ftdi_context *ftdi1, *ftdi2;
+
+static void sigint(int sig)
+{
+	fprintf(stderr, "signal: %d\n", sig);
+
+#ifdef USING_FTDI1
+	ftdi_disable_bitbang(ftdi1);
+	ftdi_usb_close(ftdi1);
+	ftdi_free(ftdi1);
+#endif
+
+#ifdef USING_FTDI2
+	ftdi_usb_close(ftdi2);
+	ftdi_disable_bitbang(ftdi2);
+	ftdi_free(ftdi2);
+#endif
+	exit(1);
+}
+
+static void signals_init(void)
+{
+	struct sigaction sa;
+
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGCHLD, SIG_IGN);
+	
+	sa.sa_flags = 0;
+	sigaddset(&sa.sa_mask, SIGINT);
+    	sigaddset(&sa.sa_mask, SIGTERM);
+   	sigaddset(&sa.sa_mask, SIGHUP);
+	sigaddset(&sa.sa_mask, SIGPIPE);
+
+	sa.sa_handler = sigint;
+	sigaction(SIGINT, &sa, NULL);
+	
+	sa.sa_handler = sigint;
+	sigaction(SIGTERM, &sa, NULL);
+	
+	sa.sa_handler = sigint;
+	sigaction(SIGHUP, &sa, NULL);	
+
+	sa.sa_handler = SIG_IGN;
+	sigaction(SIGPIPE, &sa, NULL);	
+}
+
+
+int main(int argc, char *argv[])
+{
+
+	signals_init();
+#if 1
+	struct ftdi_version_info version;
+	
+	version = ftdi_get_library_version();
+
+	printf("Initialized libftdi %s (major: %d, minor: %d, micro: %d, snapshot ver: %s)\n",  \
+	version.version_str, version.major, version.minor, version.micro, \
+	version.snapshot_str);
+
+	
+	struct ftdi_context *ftdi = NULL, *ftdi1;
+	struct ftdi_device_list *devlist, *curdev;
+	int interface = INTERFACE_ANY;
+	int ret = 0;
+	char manufacturer[512] = {0};
+	int mnf_len = 512;
+	char description[512] = {0};
+	int desc_len = 512;
+	char serial[512] = {0};
+	int serial_len = 512;
+	int retval = 0;
+	int i;
+	
+	ftdi = ftdi_new();
+	if(ftdi == NULL)
+	{
+		fprintf(stderr, "ftdi_new failed!\n");
+		return 0;
+	}
+
+	
+	//ftdi_set_interface(ftdi, INTERFACE_B);
+
+	ret = ftdi_usb_find_all(ftdi, &devlist, 0x0403, 0x6010);
+	fprintf(stderr, "find ret = %d\n", ret);
+	if(ret > 0)
+	{
+		//ftdi_usb_get_strings(ftdi, devlist[0].dev, manufacturer, mnf_len, description, desc_len, serial, serial_len);
+		//fprintf(stderr, "%s\n%s\n%s\n", manufacturer, description, serial);
+	}
+
+
+	fprintf(stderr, "type: %d\n", ftdi->type);
+
+#if 0
+   for (curdev = devlist; curdev != NULL; i++)
+    {
+	        printf("Checking device: %d\n", i);
+			
+	        if ((ret = ftdi_usb_get_strings(ftdi, curdev->dev, manufacturer, 128, description, 128, NULL, 0)) < 0)
+	        {
+		            fprintf(stderr, "ftdi_usb_get_strings failed: %d (%s)\n", ret, ftdi_get_error_string(ftdi));
+		            retval = -1;
+		            goto done;
+	        }
+			
+	        printf("Manufacturer: %s, Description: %s\n\n", manufacturer, description);
+	      	curdev = curdev->next;
+    }
+#endif
+
+
+
+
+
+
+err:
+	if(ftdi != NULL)
+	{
+		ftdi_free(ftdi);
+		ftdi = NULL;
+	}
+
+#endif
+
+	
+
+
+	unsigned char txbuf[512] = {0};
+	int i;
+
+	for(i = 0; i < 32; i++)
+	{
+		txbuf[i] = i;
+	}
+
+#ifdef USING_FTDI1
+	ftdi1 = ftdi_new();
+	ftdi_set_interface(ftdi1, INTERFACE_A);
+	ftdi_usb_open(ftdi1, 0x0403, 0x6010);
+	ftdi_set_baudrate(ftdi1, 115200);
+	ftdi_set_line_property(ftdi1, BITS_8, STOP_BIT_1, NONE);
+	ftdi_setflowctrl(ftdi1, SIO_DISABLE_FLOW_CTRL);
+	printf("1real baudrate used: %d\n", ftdi1->baudrate);
+	   if (ftdi_set_bitmode(ftdi1, 0xFF, BITMODE_RESET) < 0)
+    	{
+        	fprintf(stderr,"Can't set mode: %s\n",ftdi_get_error_string(ftdi1));
+   	 }
+#endif
+
+#ifdef USING_FTDI2
+	ftdi2 = ftdi_new();
+	ftdi_set_interface(ftdi2, INTERFACE_B);
+	ftdi_usb_open(ftdi2, 0x0403, 0x6010);
+	ftdi_set_baudrate(ftdi2, 115200);
+	ftdi_set_line_property(ftdi2, BITS_8, STOP_BIT_1, NONE);
+	ftdi_setflowctrl(ftdi2, SIO_DISABLE_FLOW_CTRL);
+  	printf("2real baudrate used: %d\n", ftdi2->baudrate);
+	 if (ftdi_set_bitmode(ftdi2, 0xFF, BITMODE_RESET) < 0)
+ 	 {
+     	  	fprintf(stderr,"Can't set mode: %s\n",ftdi_get_error_string(ftdi2));
+    	}
+#endif	
+	
+	
+	//ftdi_set_bitmode(ftdi1, 0xFF, BITMODE_BITBANG);
+
+	struct ftdi_device_list *devlist, *curdev;
+	int ret = 0;
+	char manufacturer[512] = {0};
+	int mnf_len = 512;
+	char description[512] = {0};
+	int desc_len = 512;
+	char serial[512] = {0};
+	int serial_len = 512;
+	int retval = 0;
+	
+	ret = ftdi_usb_find_all(ftdi2, &devlist, 0x0403, 0x6010);
+	fprintf(stderr, "find ret = %d\n", ret);
+	if(ret > 0)
+	{
+		ftdi_usb_get_strings(ftdi2, devlist[0].dev, manufacturer, mnf_len, description, desc_len, serial, serial_len);
+		fprintf(stderr, "%s\n%s\n%s\n", manufacturer, description, serial);
+	}
+
+
+	fprintf(stderr, "type: %d\n", ftdi2->type);
+
+#if 0
+   for (curdev = devlist; curdev != NULL; i++)
+    {
+	        printf("Checking device: %d\n", i);
+			
+	        if ((ret = ftdi_usb_get_strings(ftdi, curdev->dev, manufacturer, 128, description, 128, NULL, 0)) < 0)
+	        {
+		            fprintf(stderr, "ftdi_usb_get_strings failed: %d (%s)\n", ret, ftdi_get_error_string(ftdi));
+		            retval = -1;
+		            goto done;
+	        }
+			
+	        printf("Manufacturer: %s, Description: %s\n\n", manufacturer, description);
+	      	curdev = curdev->next;
+    }
+#endif
+
+	
+ #ifdef USING_FTDI1
+	while(1)
+	{	
+		//ftdi_write_data(ftdi2, txbuf, 32);
+
+
+		i = ftdi_read_data(ftdi1, txbuf, 512);
+		fprintf(stderr, "i = %d\n", i);
+		if(i > 0)
+		{
+			lib_printf_v2("---ftdi1----", txbuf, i, 16);
+		}
+
+		memset(txbuf, 0, sizeof(txbuf));
+		lib_sleep(1);
+	
+
+		fprintf(stderr, "while(1)\n");
+
+	}
+#endif
+
+	
+	
+ #ifdef USING_FTDI2
+	while(1)
+	{	
+		//ftdi_write_data(ftdi2, txbuf, 32);
+
+
+		i = ftdi_read_data(ftdi2, txbuf, 512);
+		fprintf(stderr, "i = %d\n", i);
+		if(i > 0)
+		{
+			lib_printf_v2("---ftdi2----", txbuf, i, 16);
+		}
+
+		memset(txbuf, 0, sizeof(txbuf));
+		lib_sleep(1);
+	
+
+		fprintf(stderr, "while(1)\n");
+
+	}
+#endif
+
+
+#if 0
+	int value = -1;
+	ftdi_get_eeprom_value(ftdi2, CHIP_SIZE, &value);
+	fprintf(stderr, "CHIP_SIZE value = %d\n", value);
+
+
+
+
+	//ftdi_disable_bitbang(ftdi1);
+
+	ftdi_usb_close(ftdi1);
+	//ftdi_usb_close(ftdi2);
+	
+	ftdi_free(ftdi1);
+//	ftdi_free(ftdi2);
+#endif
+
+ #ifdef USING_FTDI1
+	ftdi_disable_bitbang(ftdi1);
+	ftdi_usb_close(ftdi1);
+	ftdi_free(ftdi1);
+#endif
+
+ #ifdef USING_FTDI2
+	ftdi_usb_close(ftdi2);
+	ftdi_disable_bitbang(ftdi2);
+	ftdi_free(ftdi2);
+#endif
+
+	return 0;
+}
+#endif
+
+
+//void lib_str_to_hex(unsigned char *str, const unsigned int str_len, unsigned char *hex);
+
+#if 0
+int main(int argc, char *argv[])
+{
+	unsigned char hex[16] = {0};
+	unsigned char bcd[16] = {0};
+	unsigned char *str = "15061701";
+
+	lib_str_to_hex(str, strlen(str), hex);
+
+	lib_printf("----hex----\n", hex, 4);
+
+	int i;
+	
+	//for(i = 0; i < 4; i++)
+	{
+	//	bcd[i] = lib_hex_to_bcd(hex[i]);
+	}
+
+	//lib_printf("----bcd----\n", bcd, 4);
+	
+	return 0;
+}
+#endif
+
+#if 0
+void *th1_run(void *arg);
+void *th2_run(void *arg);
+
+int main(int argc, char *argv[])
+{
+	pthread_t thr1;
+
+
+	lib_normal_thread_create(&thr1, th1_run, NULL);
+
+
+	while(1)
+	{
+		fprintf(stderr, "main:while(1)\n");
+		
+		lib_sleep(10);
+	}
+
+
+	return 0;
+}
+
+void *th1_run(void *arg)
+{
+	pthread_t thr2;
+
+	int cnt = 0;
+	
+	while(1)
+	{
+		fprintf(stderr, "th1_run:while(1)\n");
+		lib_sleep(3);
+
+		lib_normal_thread_create(&thr2, th2_run, NULL);
+
+		cnt++;
+
+		if(cnt == 3)
+		{
+			fprintf(stderr, "th1_run:break\n");
+			break;
+		}
+	}
+}
+
+void *th2_run(void *arg)
+{
+	while(1)
+	{
+		fprintf(stderr, "th2_run:while(1)\n");
+		lib_sleep(3);
+	}
+}
+#endif
+
+
