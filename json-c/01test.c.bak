@@ -1,0 +1,139 @@
+ #include <stdio.h>  
+ #include <stdlib.h>  
+ #include <stddef.h>  
+ #include <string.h>  
+ #include <curl/curl.h>
+   
+ #include "json.h"  
+
+ int test_jsonc()	
+ {	
+	 
+	 CURL *curl;
+	 CURLcode ret;
+	 int  wr_error,wr_index;
+	 wr_error = 0;
+	 wr_index = 0;
+     
+	 curl = curl_easy_init();//初始化libcurl库
+	 if (!curl) {
+			printf("couldn't init curl ");
+			return -1;
+	 }
+
+	 //指定url
+	 curl_easy_setopt( curl, CURLOPT_URL, "/APPLogin" );
+
+	 struct json_object *infor_object = NULL;  
+	 infor_object = json_object_new_object();  
+	 if (NULL == infor_object)	
+	 {	
+		 printf("new json object failed.\n");  
+		 return;  
+	 }	
+
+	 
+	 // 设置http发送的内容类型为JSON   
+	 struct curl_slist *plist = curl_slist_append(NULL,"Content-Type:application/json;charset=UTF-8");  
+	 curl_easy_setopt(curl, CURLOPT_HTTPHEADER, plist);  
+
+	 //设置http请求json格式参数
+	 //设置要POST的JSON数据
+     //curl_easy_setopt( curl, CURLOPT_POSTFIELDS, para_object->toStyledString().c_str());
+
+	 curl_easy_setopt( curl, CURLOPT_WRITEDATA, (void *)&wr_error );
+     //curl_easy_setopt( curl, CURLOPT_WRITEFUNCTION, write_data );
+   
+   ret = curl_easy_perform( curl );
+   printf( "ret = %d (write_error = %d)\n", ret, wr_error );
+
+	 
+	 curl_easy_cleanup(curl);	
+   
+	 struct json_object *para_object = NULL;  
+	 para_object = json_object_new_object();  
+	 if (NULL == para_object)  
+	 {	
+		 json_object_put(infor_object);//free	
+		 printf("new json object failed.\n");  
+		 return;  
+	 }	
+   #if 0
+	 struct json_object *array_object = NULL;  
+	 array_object = json_object_new_array();  
+	 if (NULL == array_object)	
+	 {	
+		 json_object_put(infor_object);//free	
+		 json_object_put(para_object);//free   
+		 printf("new json object failed.\n");  
+		 return;  
+	 }	
+   #endif
+   #if 0
+	 /*添加json值类型到数组中*/  
+	 json_object_array_add(array_object, json_object_new_int(256));  
+	 json_object_array_add(array_object, json_object_new_int(257));  
+	 json_object_array_add(array_object, json_object_new_int(258));  
+   #endif
+	 json_object_object_add(para_object, "timestamp", json_object_new_int(1428042275));  
+	 //json_object_object_add(para_object, "platform", json_object_new_int(1));  
+	 //json_object_object_add(para_object, "userinfo", json_object_new_string("{\"openid\":\"1234567890\"}"));  
+	 //json_object_object_add(para_object, "type", json_object_new_int(1));  
+	 json_object_object_add(para_object, "data", json_object_new_string("C99486C1AA1897DE48650DC10C2BECB796D3F43CA80F884DE22023F22E0C359398EA8F3C3A8D3965024F8FFEF9F4E4F17AACBFEF799F113279B4BEDEA9B3541D1A0E156475F7E2DC"));  
+	 json_object_object_add(para_object, "mac", json_object_new_string("D99C278A"));  
+
+   #if 1
+	 /*添加json名称和值到json对象集合中*/  
+	 //json_object_object_add(infor_object, "method", json_object_new_string("GetSystemInfo"));  
+	 json_object_object_add(infor_object, "param", para_object);  
+	 //json_object_object_add(infor_object, "id", json_object_new_string("101"));  
+   
+	 /*添加数组集合到json对象中*/  
+	 //json_object_object_add(infor_object, "array", array_object);  
+   #endif
+	 printf("-----------json infor ---------------------------\n");  
+	 printf("%s\n", json_object_to_json_string(infor_object));	
+	 printf("-----------json infor ---------------------------\n");  
+   #if 0
+	 struct json_object *result_object = NULL;	
+   
+   
+	 result_object =  json_object_object_get(infor_object, "method");  
+	 printf("-----------result_object method ---------------------------\n");  
+	 printf("%s\n", json_object_to_json_string(result_object));  
+	 printf("-----------result_object method---------------------------\n");  
+   
+	 result_object =  json_object_object_get(infor_object, "param");  
+	 printf("-----------result_object param ---------------------------\n");  
+	 printf("%s\n", json_object_to_json_string(result_object));  
+	 printf("-----------result_object param---------------------------\n");  
+   
+	 result_object =  json_object_object_get(infor_object, "array");  
+	 printf("-----------result_object  array---------------------------\n");  
+	 printf("%s\n", json_object_to_json_string(result_object));  
+	 printf("-----------result_object array---------------------------\n");  
+   
+	 int i;  
+	 for(i = 0; i < json_object_array_length(result_object); i++) {  
+	   struct json_object *obj = json_object_array_get_idx(result_object, i);  
+	   printf("\t[%d]=%s\n", i, json_object_to_json_string(obj));  
+	 }	
+   #endif
+	 
+
+     
+     curl_global_cleanup();  
+   
+	 json_object_put(infor_object);//free	
+
+	 return 0;
+ }	
+   
+   
+ int main(int argc, char *argv[])  
+ {	
+	 test_jsonc();	
+   
+	 return 0;	
+ }
+
