@@ -1,0 +1,148 @@
+
+#include <stdio.h>
+#include <assert.h>
+#include "lib_general.h"
+#include "escape.h"
+#include <time.h> 
+#include "common.h"
+
+#if 1
+	#define SER_IP   	"120.24.97.95"
+	#define SER_PORT 	20000 
+#else
+	#define SER_IP   	"180.76.140.185"
+	#define SER_PORT 	20001
+#endif
+
+#define COM_IP   	"121.8.152.2"
+#define COM_PORT 	3639
+
+int main(int argc,char *argv[])
+{
+	int ret = -1,sfd = -1;
+	unsigned char rxbuf[128] = {0},txbuf[128] = {0},buf[128] = {0};
+	
+	printf("######### compile time:%s,%s #########\n",__DATE__,__TIME__);
+
+#if 0
+	uchar mac_addr[6] = {0x54,0x4A,0x16,0xC9,0xF1,0x3A};
+
+	load_balance_req_t req;
+	load_balance_ack_t ack;
+
+	memset(&req,0,sizeof(req));
+	memset(&ack,0,sizeof(ack));
+
+	memcpy(&req.mac_addr,&mac_addr,6);
+	req.dev_code = htons(0xAAAD);
+	req.operator_code = htons(1);
+	req.dev_type = htons(1);
+#endif
+#if 0
+	//data_frame_t data;
+
+	//ret = data_frame_init(&data);
+	
+	
+	//请求分配通讯机
+	sfd = lib_udp_client_nonb_new();
+	printf("new udp,sfd = %d\n",sfd);
+	if(sfd <= 0){
+		fprintf(stderr,"new udp failed!\n");
+		goto exit;
+	}
+#if 0
+	data.cmd = LOAD_BALANCE_REQ;
+	data.data_len = htons(sizeof(req) + 2);
+	data.guid_word = 0x4250;
+	memcpy(&data.data,&req,sizeof(req));
+	//data.crc16 = htons((unsigned short)lib_crc16_with_byte(&data[1],data.data_len + 8));//校验;
+
+	ret = lib_udp_sendto_select(sfd,SER_IP,SER_PORT,(void *)&data,30,500);
+	printf("send,ret = %d\n",ret);
+	if(ret <= 0){
+		fprintf(stderr,"send failed!\n");
+		goto err;
+	}
+#else
+	//上行
+	ret = package_make(txbuf,0x00,0x02,0xA4);//组通信数据帧
+	printf("package_make,ret = %d\n",ret);
+	lib_printf_v2("txbuf",txbuf,ret,16);
+	
+	ret = lib_udp_sendto_select(sfd,SER_IP,SER_PORT,txbuf,ret,500);
+	printf("send,ret = %d\n",ret);
+	if(ret <= 0){
+		fprintf(stderr,"send failed!\n");
+		goto err1;
+	}
+
+	//下行
+	ret = lib_udp_recvfrom_select(sfd,SER_IP,SER_PORT,rxbuf,128,500);
+	printf("recv,ret = %d\n",ret);
+	if(ret <= 0){
+		fprintf(stderr,"recv failed!\n");
+		goto err1;
+	}
+	lib_printf_v2("-------------recv-------------",(unsigned char *)&rxbuf,ret,16);
+
+	ret = __downlink_escape(&buf,&rxbuf,ret);
+	lib_printf_v2("-------------__downlink_escape-------------",(unsigned char *)&buf,ret,16);
+
+	ret = lib_b64_decode_hex(&rxbuf,&buf[11],36);
+	//printf("b64_decode_hex,ret = %d\n",ret);	
+	lib_printf_v2("-------------b64_decode-------------",(unsigned char *)&rxbuf,ret,16);
+
+	int i;
+	for(i = 0; i < ret; i++){
+		printf("%d ",rxbuf[i]);
+	}
+	printf("\n");
+
+#endif
+err1:
+	lib_udp_close(sfd);
+#endif
+#if 1
+	//节点机签到
+	sfd = lib_tcp_client_nonb_new(COM_IP,COM_PORT,1);
+	printf("tcp_client_new,sfd = %d\n",sfd);
+	if(sfd <= 0){
+		fprintf(stderr,"new tcp failed!\n");
+		goto exit;
+	}
+
+	
+	ret = package_make(txbuf,0x00,0x02,0xA1);//组通信数据帧
+	printf("package_make,ret = %d\n",ret);
+	lib_printf_v2("txbuf",txbuf,ret,16);
+	
+	ret = lib_udp_sendto_select(sfd,SER_IP,SER_PORT,txbuf,ret,500);
+	printf("send,ret = %d\n",ret);
+	if(ret <= 0){
+		fprintf(stderr,"send failed!\n");
+		goto err;
+	}
+
+	ret = lib_udp_recvfrom_select(sfd,SER_IP,SER_PORT,rxbuf,128,500);
+	printf("recv,ret = %d\n",ret);
+	if(ret <= 0){
+		fprintf(stderr,"recv failed!\n");
+		goto err;
+	}
+	lib_printf_v2("-------------recv-------------",(unsigned char *)&rxbuf,ret,16);
+#endif
+
+err:
+	lib_tcp_disconnect(sfd);
+exit:
+	return 0;
+}
+
+
+
+
+
+
+
+
