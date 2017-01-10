@@ -1,0 +1,4 @@
+all:
+	arm-none-linux-gnueabi-gcc yct_test.c lib_general.a -lpthread -lrt -o yct_test
+clean:
+	rm -f *.o yct_test

@@ -1,0 +1,4 @@
+/mysoftware_backup/others/make_file/cmake/demo8/_CPack_Packages/Linux/TZ/Demo8-1.0.1-Linux/bin/Demo
+/mysoftware_backup/others/make_file/cmake/demo8/_CPack_Packages/Linux/TZ/Demo8-1.0.1-Linux/include/config.h
+/mysoftware_backup/others/make_file/cmake/demo8/_CPack_Packages/Linux/TZ/Demo8-1.0.1-Linux/bin/libMathFunctions.a
+/mysoftware_backup/others/make_file/cmake/demo8/_CPack_Packages/Linux/TZ/Demo8-1.0.1-Linux/include/MathFunctions.h

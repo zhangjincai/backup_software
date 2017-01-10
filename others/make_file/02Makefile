@@ -1,0 +1,17 @@
+#This is a Makefile for test
+
+OBJS = a.o b.o c.o
+prog:$(OBJS)
+	cc $(OBJS) -o $@  
+
+#a.o:a.c a.h
+#	@cc -c a.c
+#b.o:b.c b.h
+#	@cc -c b.c
+#c.o:c.c c.h common.h
+#	@cc -c c.c
+
+.PHONY:clean
+clean:
+	@-rm -f prog $(OBJS)
+

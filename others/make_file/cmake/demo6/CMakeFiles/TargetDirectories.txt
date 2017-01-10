@@ -1,0 +1,16 @@
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/install/local.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/install.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/list_install_components.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/rebuild_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/install/strip.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/edit_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/test.dir
+/mysoftware_backup/others/make_file/cmake/demo6/CMakeFiles/Demo.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/install/local.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/install.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/list_install_components.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/install/strip.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/edit_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/test.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/rebuild_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo6/math/CMakeFiles/MathFunctions.dir

@@ -1,0 +1,1 @@
+sha256实现 依次执行 SHA256Init、 SHA256Update SHA256Final 三个函数即可得到sha256结果

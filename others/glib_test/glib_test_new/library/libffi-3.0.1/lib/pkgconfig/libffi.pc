@@ -1,0 +1,10 @@
+prefix=/libffi-3.0.1_for_arm/
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${libdir}/libffi-3.0.1/include
+
+Name: libffi
+Description: Library supporting Foreign Function Interfaces
+Version: 3.0.1
+Libs: -lffi
+Cflags: -I${includedir}

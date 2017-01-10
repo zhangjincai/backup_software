@@ -1,0 +1,3 @@
+/mysoftware_backup/others/make_file/cmake/demo2/CMakeFiles/rebuild_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo2/CMakeFiles/edit_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo2/CMakeFiles/Demo.dir

@@ -1,0 +1,12 @@
+prefix=/glib_2.48.0_for_arm_static
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: GObject
+Description: GLib Type, Object, Parameter and Signal Library
+Requires: glib-2.0
+Version: 2.48.0
+Libs: -L${libdir} -lgobject-2.0
+Libs.private: /libffi-3.0.1_for_arm/lib/libffi.la
+Cflags:

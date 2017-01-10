@@ -1,0 +1,7 @@
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/install/local.dir
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/install.dir
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/list_install_components.dir
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/rebuild_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/install/strip.dir
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/edit_cache.dir
+/mysoftware_backup/others/make_file/cmake/demo4/CMakeFiles/Demo.dir
