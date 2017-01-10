@@ -1,0 +1,10 @@
+
+all:
+	arm-none-linux-gnueabi-gcc server.c -o uart_test libgeneral.a -lpthread -lrt
+	#arm-none-linux-gnueabi-gcc gps_recv.c -o gps_recv libgeneral.a -lpthread -lrt
+	arm-none-linux-gnueabi-gcc test.c -o test libgeneral.a -lpthread -lrt
+
+clean:
+	@rm -f gps_recv uart_test test
+
+	

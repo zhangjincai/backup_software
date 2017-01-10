@@ -1,0 +1,154 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "lib_general.h"
+#include "lib_records.h"
+
+
+#define REC_DB_PATHNAME		"/opt/records/temp_records_file.db"
+
+
+lib_records_file_t *g_rec_file = NULL;
+
+
+int main(int argc, char *argv[])
+{
+	g_rec_file  = lib_records_create(REC_DB_PATHNAME);
+	if(g_rec_file == NULL)
+	{
+		fprintf(stderr, "lib_records_create FAILED!\n");
+		return 0;
+	}
+
+	int ret = LIB_REC_ERROR;
+	int i;
+	int pkt_sn = 1982;
+	unsigned char pid[8] = {0};
+	unsigned char lid[8] = {0};
+	unsigned char trade_record[90] = {0};
+	char macaddr[6] = {0};
+
+	unsigned char r_pkt_data[512] = {0};
+	int r_pkt_len = 0;
+	
+	lib_get_macaddr("eth0", &macaddr);
+
+	
+	
+	for(i = 0; i < 8; i++)
+	{
+		pid[i] = 0x10 + i;
+		lid[i] = 0x80 + i;
+	}
+
+	for(i = 0; i < 90; i++)
+	{
+		trade_record[i] = i;
+	}
+
+	for(i = 0; i < 256; i++)
+	{
+		r_pkt_data[i] = i;
+	}
+
+	r_pkt_len = 256;
+
+
+	#if 0
+	pkt_sn = 1000;
+	int cnt = 10;
+	while(1)
+	{
+		pkt_sn++;
+		cnt--;
+		ret =  lib_records_consume_insert_data(g_rec_file, pkt_sn, pid, lid, trade_record);
+		fprintf(stderr, "lib_records_consume_insert_data ret = %d\n", ret);
+
+
+		if(cnt == 0)
+			break;
+	}
+	#endif
+
+
+
+	#if 0
+	pkt_sn = 888;
+
+	for(i = 0; i < 10; i++)
+	{
+		pkt_sn++;
+		r_pkt_data[0] = 0xf1+i;
+		ret =  lib_records_reconsume_insert_data(g_rec_file, pkt_sn, pid, macaddr, r_pkt_len, r_pkt_data);
+		fprintf(stderr, "ret = %d\n", ret);
+	}
+	#endif
+
+	#if 0
+	pkt_sn = 892;
+
+	r_pkt_len = 0;
+	memset(&r_pkt_data, 0, sizeof(r_pkt_data));
+	ret = lib_records_reconsume_select_data(g_rec_file, pkt_sn, &r_pkt_len, &r_pkt_data);
+	fprintf(stderr, "s_ret = %d\n", ret);
+
+	fprintf(stderr, "r_pkt_len = %d\n", r_pkt_len);
+
+	lib_printf_v2("R_PKT_DATA", r_pkt_data, r_pkt_len, 16);
+	#endif
+
+	#if 0
+	pkt_sn = 893;
+	ret =  lib_records_reconsume_delete_data(g_rec_file, pkt_sn);
+	fprintf(stderr, "d_ret = %d\n", ret);
+	#endif
+
+	#if 0
+	int count = 0;
+	ret = lib_records_reconsume_count(g_rec_file, &count);
+	fprintf(stderr, "count = %d\n", count);
+	fprintf(stderr, "c_ret = %d\n", ret);
+	#endif
+
+
+
+	//lib_records_oncard_ack_insert_data(lib_records_file_t *rec, const int pkt_sn, const unsigned char pid[8], const unsigned char macaddr[6], const int pkt_len, void *pkt_data);
+	
+
+	#if 0
+	pkt_sn = 2000;
+	int cnt = 10;
+	while(1)
+	{
+		pkt_sn++;
+		cnt--;
+		ret =  lib_records_oncard_ack_insert_data(g_rec_file, pkt_sn, pid, macaddr, r_pkt_len, r_pkt_data);
+		fprintf(stderr, "lib_records_oncard_ack_insert_data ret = %d\n", ret);
+
+
+		if(cnt == 0)
+			break;
+	}
+	#endif
+
+#if 1
+	pkt_sn = 0;
+	r_pkt_len = 0;
+	memset(&r_pkt_data, 0, sizeof(r_pkt_data));
+	
+	ret = lib_records_oncard_ack_select_all_data(g_rec_file, &pkt_sn, &r_pkt_len, &r_pkt_data);
+	fprintf(stderr, "lib_records_oncard_ack_select_all_data ret = %d\n", ret);
+
+	fprintf(stderr, "pkt_sn=%d, r_pkt_len=%d\n", pkt_sn, r_pkt_len);
+	lib_printf_v2("PKT DATA", r_pkt_data, r_pkt_len, 16);
+	
+
+	lib_records_oncard_ack_delete_data(g_rec_file, pkt_sn);
+#endif
+
+	lib_records_destroy(g_rec_file);
+
+	return 0;
+}
+

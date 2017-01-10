@@ -1,0 +1,13 @@
+
+KDIR = /linux-3.2.0/linux-3.2.0-psp04.06.00.11-m3352/
+ 
+
+obj-m = 01new_device.o
+obj-m += 05dev_driver.o
+
+all:
+	make -C $(KDIR) modules M=`pwd` 
+
+clean:
+	make -C $(KDIR) modules M=`pwd` clean 
+

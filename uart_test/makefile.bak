@@ -1,0 +1,15 @@
+
+OBJS = server.o
+#OBJS += stdio.o
+LIBS = -lpthread -lrt -lgeneral
+CROSS_COMPILER = arm-none-linux-gnueabi-
+TARGET = uart
+
+$(TARGET) : $(OBJS)
+	$(CROSS_COMPILER)gcc $(LIBS) $^ -o $@
+
+%.o : %.c
+	$(CROSS_COMPILER)gcc $< -c -o $@ 
+
+clean:
+	@rm -f *.o $(TARGET) 
